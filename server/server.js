@@ -11,7 +11,21 @@ connectDB();
 const app = express();
 
 // Middleware
-app.use(cors());
+const allowedOrigins = [
+    'https://staff.downunderwholesalers.com.au',
+    'http://localhost:5173',
+    'http://localhost:3000',
+];
+app.use(cors({
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error(`CORS Error: Origin "${origin}" is not allowed.`));
+        }
+    },
+    credentials: true,
+}));
 app.use(express.json());
 
 // API Routes
