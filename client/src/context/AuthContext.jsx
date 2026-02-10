@@ -21,7 +21,9 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const verifyAuth = async () => {
             const token = localStorage.getItem('token');
-            if (!token) {
+            const storedUser = localStorage.getItem('user');
+
+            if (!token || !storedUser) {
                 setLoading(false);
                 return;
             }
@@ -31,9 +33,16 @@ export const AuthProvider = ({ children }) => {
                 setUser(data);
                 localStorage.setItem('user', JSON.stringify(data));
             } catch {
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                setUser(null);
+                // If /me fails but we have stored credentials, trust them
+                // This handles Apache proxy stripping auth headers
+                const parsed = JSON.parse(storedUser);
+                if (parsed && parsed._id) {
+                    setUser(parsed);
+                } else {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    setUser(null);
+                }
             } finally {
                 setLoading(false);
             }
