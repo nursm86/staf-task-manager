@@ -1,8 +1,36 @@
 import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import StatusBadge from './StatusBadge';
-import { Eye, GripVertical, CheckSquare } from 'lucide-react';
+import api from '../lib/api';
+import { Eye, CheckSquare } from 'lucide-react';
+
+const STATUSES = [
+    'Assigned',
+    'Working on it',
+    'Waiting for review',
+    'Pause for something else',
+    'Finished',
+    'Cancelled',
+];
 
 export default function TaskList({ tasks, onTaskClick, onAuditClick, isLoading }) {
+    const queryClient = useQueryClient();
+
+    const updateStatusMutation = useMutation({
+        mutationFn: async ({ taskId, status }) => {
+            const { data } = await api.put(`/tasks/${taskId}`, { status });
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        },
+    });
+
+    const handleStatusChange = (e, taskId) => {
+        e.stopPropagation();
+        updateStatusMutation.mutate({ taskId, status: e.target.value });
+    };
+
     if (isLoading) {
         return (
             <div className="space-y-3">
@@ -78,12 +106,34 @@ export default function TaskList({ tasks, onTaskClick, onAuditClick, isLoading }
                                 </div>
                             </div>
 
-                            {/* Status badge */}
-                            <StatusBadge status={task.status} className="shrink-0 hidden sm:inline-flex" />
-
-                            {/* Mobile status dot */}
-                            <div className="sm:hidden shrink-0">
-                                <StatusBadge status={task.status} className="!px-1.5 !gap-0 [&>span:last-child]:hidden" />
+                            {/* Inline status dropdown */}
+                            <div className="shrink-0 relative" onClick={(e) => e.stopPropagation()}>
+                                <select
+                                    value={task.status}
+                                    onChange={(e) => handleStatusChange(e, task._id)}
+                                    disabled={updateStatusMutation.isPending}
+                                    className="appearance-none bg-transparent text-xs font-medium pl-5 pr-6 py-1.5 rounded-lg border cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all"
+                                    style={{
+                                        borderColor: getStatusColor(task.status, 0.3),
+                                        color: getStatusColor(task.status, 1),
+                                        backgroundColor: getStatusColor(task.status, 0.1),
+                                    }}
+                                >
+                                    {STATUSES.map((statusOption) => (
+                                        <option key={statusOption} value={statusOption} className="bg-card text-foreground">
+                                            {statusOption}
+                                        </option>
+                                    ))}
+                                </select>
+                                {/* Status dot */}
+                                <span
+                                    className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full pointer-events-none"
+                                    style={{ backgroundColor: getStatusColor(task.status, 1) }}
+                                />
+                                {/* Dropdown arrow */}
+                                <svg className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none" style={{ color: getStatusColor(task.status, 0.7) }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
                             </div>
 
                             {/* Audit eye */}
@@ -103,4 +153,16 @@ export default function TaskList({ tasks, onTaskClick, onAuditClick, isLoading }
             })}
         </div>
     );
+}
+
+function getStatusColor(status, opacity) {
+    const colors = {
+        'Assigned': `rgba(100, 116, 139, ${opacity})`,
+        'Working on it': `rgba(59, 130, 246, ${opacity})`,
+        'Waiting for review': `rgba(168, 85, 247, ${opacity})`,
+        'Pause for something else': `rgba(249, 115, 22, ${opacity})`,
+        'Finished': `rgba(34, 197, 94, ${opacity})`,
+        'Cancelled': `rgba(239, 68, 68, ${opacity})`,
+    };
+    return colors[status] || colors['Assigned'];
 }

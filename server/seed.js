@@ -27,12 +27,12 @@ const seedUsers = async () => {
             {
                 name: 'Lamim',
                 password: process.env.USER_LAMIM_PASSWORD,
-                role: 'User',
+                role: 'Admin',
             },
             {
                 name: 'Tony',
                 password: process.env.USER_TONY_PASSWORD,
-                role: 'User',
+                role: 'Admin',
             },
         ];
 
