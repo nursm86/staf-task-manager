@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import StatusBadge from './StatusBadge';
 import api from '../lib/api';
-import { Eye, CheckSquare } from 'lucide-react';
+import { Eye, CheckSquare, Calendar } from 'lucide-react';
 
 const STATUSES = [
     'Assigned',
@@ -69,6 +69,7 @@ export default function TaskList({ tasks, onTaskClick, onAuditClick, isLoading }
                     <div
                         key={task._id}
                         className="group bg-card border border-border hover:border-primary/30 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-primary/5"
+                        style={getUrgencyStyle(task)}
                     >
                         <div className="flex items-center gap-3 px-4 py-3.5">
                             {/* Priority indicator */}
@@ -103,6 +104,12 @@ export default function TaskList({ tasks, onTaskClick, onAuditClick, isLoading }
                                         {task.assigned_to?.name || 'Unassigned'}
                                     </span>
                                     <span className="shrink-0">P: {task.priority}</span>
+                                    {task.finished_by && (
+                                        <span className={`shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium ${getDeadlineBadgeClass(task)}`}>
+                                            <Calendar className="w-2.5 h-2.5" />
+                                            {formatFinishedBy(task.finished_by)}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
 
@@ -165,4 +172,65 @@ function getStatusColor(status, opacity) {
         'Cancelled': `rgba(239, 68, 68, ${opacity})`,
     };
     return colors[status] || colors['Assigned'];
+}
+
+function getDaysUntilDeadline(finishedBy) {
+    if (!finishedBy) return null;
+    const now = new Date();
+    const deadline = new Date(finishedBy);
+    // Compare dates only (ignore time)
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const deadlineStart = new Date(deadline.getFullYear(), deadline.getMonth(), deadline.getDate());
+    const diffMs = deadlineStart - todayStart;
+    return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+}
+
+function getUrgencyStyle(task) {
+    // Skip urgency coloring for completed/cancelled tasks
+    if (task.status === 'Finished' || task.status === 'Cancelled') return {};
+
+    const daysLeft = getDaysUntilDeadline(task.finished_by);
+    if (daysLeft === null || daysLeft > 2) return {};
+
+    if (daysLeft <= 0) {
+        // Overdue or due today
+        return {
+            backgroundColor: 'rgba(239, 68, 68, 0.15)',
+            borderColor: 'rgba(239, 68, 68, 0.5)',
+            boxShadow: '0 0 12px rgba(239, 68, 68, 0.15)',
+        };
+    } else if (daysLeft === 1) {
+        // Tomorrow
+        return {
+            backgroundColor: 'rgba(239, 68, 68, 0.08)',
+            borderColor: 'rgba(239, 68, 68, 0.3)',
+            boxShadow: '0 0 8px rgba(239, 68, 68, 0.08)',
+        };
+    } else {
+        // 2 days away
+        return {
+            backgroundColor: 'rgba(249, 115, 22, 0.06)',
+            borderColor: 'rgba(249, 115, 22, 0.2)',
+        };
+    }
+}
+
+function formatFinishedBy(finishedBy) {
+    const date = new Date(finishedBy);
+    return date.toLocaleDateString('en-AU', {
+        day: 'numeric',
+        month: 'short',
+    });
+}
+
+function getDeadlineBadgeClass(task) {
+    if (task.status === 'Finished' || task.status === 'Cancelled') {
+        return 'bg-secondary text-muted-foreground';
+    }
+
+    const daysLeft = getDaysUntilDeadline(task.finished_by);
+    if (daysLeft === null || daysLeft > 2) return 'bg-secondary text-muted-foreground';
+    if (daysLeft <= 0) return 'bg-red-500/20 text-red-400';
+    if (daysLeft === 1) return 'bg-red-500/15 text-red-400';
+    return 'bg-orange-500/15 text-orange-400';
 }

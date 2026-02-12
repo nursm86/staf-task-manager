@@ -45,8 +45,24 @@ router.get('/', async (req, res) => {
         const tasks = await Task.find(filter)
             .populate('assigned_to', 'name')
             .populate('created_by', 'name')
-            .populate('updated_by', 'name')
-            .sort({ priority: -1, created_at: -1 });
+            .populate('updated_by', 'name');
+
+        // Sort: tasks with finished_by date first (ascending), then tasks without, then by priority desc
+        tasks.sort((a, b) => {
+            const aDate = a.finished_by ? new Date(a.finished_by).getTime() : null;
+            const bDate = b.finished_by ? new Date(b.finished_by).getTime() : null;
+
+            if (aDate && bDate) {
+                if (aDate !== bDate) return aDate - bDate;
+            } else if (aDate && !bDate) {
+                return -1;
+            } else if (!aDate && bDate) {
+                return 1;
+            }
+
+            // Secondary sort by priority descending
+            return (b.priority || 0) - (a.priority || 0);
+        });
 
         res.json(tasks);
     } catch (error) {
@@ -58,7 +74,7 @@ router.get('/', async (req, res) => {
 // POST /api/tasks — create task
 router.post('/', async (req, res) => {
     try {
-        const { title, description, status, assigned_to, priority, sub_tasks } = req.body;
+        const { title, description, status, assigned_to, priority, sub_tasks, finished_by } = req.body;
 
         if (!title || !title.trim()) {
             return res.status(400).json({ message: 'Title is required' });
@@ -70,6 +86,7 @@ router.post('/', async (req, res) => {
             status: status || 'Assigned',
             assigned_to: assigned_to || null,
             priority: priority || 0,
+            finished_by: finished_by || null,
             created_by: req.user._id,
             updated_by: req.user._id,
             sub_tasks: sub_tasks || [],
@@ -135,7 +152,7 @@ router.put('/:id', async (req, res) => {
             return res.status(404).json({ message: 'Task not found' });
         }
 
-        const updatableFields = ['title', 'description', 'status', 'assigned_to', 'priority', 'sub_tasks'];
+        const updatableFields = ['title', 'description', 'status', 'assigned_to', 'priority', 'sub_tasks', 'finished_by'];
         const changes = [];
 
         for (const field of updatableFields) {
@@ -171,6 +188,19 @@ router.put('/:id', async (req, res) => {
                     oldValue: null,
                     newValue: null,
                 });
+            } else if (field === 'finished_by') {
+                const oldDate = oldValue ? new Date(oldValue).toISOString().split('T')[0] : null;
+                const newDate = newValue ? new Date(newValue).toISOString().split('T')[0] : null;
+
+                if (oldDate !== newDate) {
+                    changes.push({
+                        action: 'Updated Finished By',
+                        field: 'finished_by',
+                        oldValue: oldDate || 'None',
+                        newValue: newDate || 'None',
+                    });
+                    task.finished_by = newValue || null;
+                }
             } else if (String(oldValue) !== String(newValue)) {
                 const actionMap = {
                     title: 'Updated Title',

@@ -43,6 +43,10 @@ const taskSchema = new mongoose.Schema({
         type: Number,
         default: 0,
     },
+    finished_by: {
+        type: Date,
+        default: null,
+    },
     is_trashed: {
         type: Boolean,
         default: false,
@@ -68,6 +72,7 @@ const taskSchema = new mongoose.Schema({
 taskSchema.index({ priority: -1 });
 taskSchema.index({ assigned_to: 1 });
 taskSchema.index({ status: 1 });
+taskSchema.index({ finished_by: 1, priority: -1 });
 
 const Task = mongoose.model('Task', taskSchema);
 module.exports = Task;

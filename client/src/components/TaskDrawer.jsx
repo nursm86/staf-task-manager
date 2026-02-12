@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import SubTasks from './SubTasks';
 import StatusBadge from './StatusBadge';
-import { X, Save, Trash2, RotateCcw } from 'lucide-react';
+import { X, Save, Trash2, RotateCcw, Calendar } from 'lucide-react';
 
 const STATUSES = [
     'Assigned',
@@ -25,6 +25,7 @@ export default function TaskDrawer({ taskId, onClose, isCreateMode = false }) {
         status: 'Assigned',
         assigned_to: '',
         priority: 0,
+        finished_by: '',
         sub_tasks: [],
     });
     const [hasChanges, setHasChanges] = useState(false);
@@ -54,6 +55,7 @@ export default function TaskDrawer({ taskId, onClose, isCreateMode = false }) {
                 status: taskData.status || 'Assigned',
                 assigned_to: taskData.assigned_to?._id || '',
                 priority: taskData.priority || 0,
+                finished_by: taskData.finished_by ? new Date(taskData.finished_by).toISOString().split('T')[0] : '',
                 sub_tasks: taskData.sub_tasks || [],
             });
         }
@@ -243,6 +245,22 @@ export default function TaskDrawer({ taskId, onClose, isCreateMode = false }) {
                                         ))}
                                     </select>
                                 </div>
+                            </div>
+
+                            {/* Finished By */}
+                            <div>
+                                <label className="block text-sm font-medium text-foreground mb-1.5">
+                                    <span className="flex items-center gap-1.5">
+                                        <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                                        Finished By
+                                    </span>
+                                </label>
+                                <input
+                                    type="date"
+                                    value={formData.finished_by}
+                                    onChange={(e) => handleFieldChange('finished_by', e.target.value)}
+                                    className="w-full px-3 py-2.5 bg-secondary border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all [color-scheme:dark]"
+                                />
                             </div>
 
                             {/* Sub-tasks */}
