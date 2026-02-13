@@ -1,21 +1,46 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import { MessageSquare, Send } from 'lucide-react';
 
 export default function TaskComments({ taskId, comments = [] }) {
     const [newCommentText, setNewCommentText] = useState('');
+    const [displayComments, setDisplayComments] = useState(comments);
     const queryClient = useQueryClient();
+    const { user } = useAuth();
+
+    // Sync local state when parent data updates (e.g. from refetch)
+    useEffect(() => {
+        setDisplayComments(comments);
+    }, [comments]);
 
     const addCommentMutation = useMutation({
         mutationFn: async (text) => {
             const { data } = await api.post(`/tasks/${taskId}/comments`, { text });
             return data;
         },
+        onMutate: async (text) => {
+            // Optimistic update — show the comment immediately
+            const optimisticComment = {
+                _id: `temp-${Date.now()}`,
+                text,
+                author_name: user?.name || 'You',
+                author_id: user?._id,
+                created_at: new Date().toISOString(),
+            };
+            setDisplayComments((prev) => [...prev, optimisticComment]);
+            setNewCommentText('');
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['task', taskId] });
             queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        },
+        onError: (error) => {
+            // Revert optimistic update on error
+            setDisplayComments(comments);
             setNewCommentText('');
+            alert(error.response?.data?.message || 'Failed to add comment');
         },
     });
 
@@ -75,21 +100,21 @@ export default function TaskComments({ taskId, comments = [] }) {
                     <MessageSquare className="w-3.5 h-3.5 text-muted-foreground" />
                     Comments
                 </label>
-                {comments.length > 0 && (
+                {displayComments.length > 0 && (
                     <span className="text-xs text-muted-foreground">
-                        {comments.length} comment{comments.length !== 1 ? 's' : ''}
+                        {displayComments.length} comment{displayComments.length !== 1 ? 's' : ''}
                     </span>
                 )}
             </div>
 
             {/* Comment list */}
             <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-                {comments.length === 0 && (
+                {displayComments.length === 0 && (
                     <p className="text-xs text-muted-foreground/60 italic py-2">
                         No comments yet. Be the first to add one.
                     </p>
                 )}
-                {comments.map((comment) => (
+                {displayComments.map((comment) => (
                     <div
                         key={comment._id}
                         className="flex gap-2.5"

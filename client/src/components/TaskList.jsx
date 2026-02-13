@@ -25,7 +25,20 @@ export default function TaskList({ tasks, onTaskClick, onAuditClick, isLoading, 
             queryClient.invalidateQueries({ queryKey: ['tasks'] });
             queryClient.invalidateQueries({ queryKey: ['taskCounts'] });
         },
+        onError: (error) => {
+            alert(error.response?.data?.message || 'Failed to update task');
+        },
     });
+
+    const handleTrashTask = (e, taskId, isTrash) => {
+        e.stopPropagation();
+        const message = isTrash
+            ? 'Are you sure you want to restore this task?'
+            : 'Are you sure you want to move this task to trash?';
+        if (window.confirm(message)) {
+            trashTaskMutation.mutate(taskId);
+        }
+    };
 
     const updateStatusMutation = useMutation({
         mutationFn: async ({ taskId, status }) => {
@@ -156,14 +169,11 @@ export default function TaskList({ tasks, onTaskClick, onAuditClick, isLoading, 
 
                             {/* Trash / Restore */}
                             <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    trashTaskMutation.mutate(task._id);
-                                }}
+                                onClick={(e) => handleTrashTask(e, task._id, activeTab === 'trash')}
                                 disabled={trashTaskMutation.isPending}
                                 className={`p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all cursor-pointer ${activeTab === 'trash'
-                                        ? 'hover:bg-green-500/10 text-muted-foreground hover:text-green-400'
-                                        : 'hover:bg-destructive/10 text-muted-foreground hover:text-destructive'
+                                    ? 'hover:bg-green-500/10 text-muted-foreground hover:text-green-400'
+                                    : 'hover:bg-destructive/10 text-muted-foreground hover:text-destructive'
                                     }`}
                                 title={activeTab === 'trash' ? 'Restore' : 'Move to Trash'}
                             >
