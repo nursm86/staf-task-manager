@@ -5,7 +5,7 @@ import api from '../lib/api';
 import TaskList from '../components/TaskList';
 import TaskDrawer from '../components/TaskDrawer';
 import AuditHistory from '../components/AuditHistory';
-import { Plus, Filter } from 'lucide-react';
+import { Plus, Filter, Trash2 } from 'lucide-react';
 
 const STATUSES = [
     { value: 'all', label: 'All Statuses' },
@@ -41,6 +41,8 @@ export default function Dashboard() {
         queryParams.set('tab', 'my-tasks');
     } else if (activeTab === 'unassigned') {
         queryParams.set('tab', 'unassigned');
+    } else if (activeTab === 'trash') {
+        queryParams.set('tab', 'trash');
     } else {
         queryParams.set('assigned_to', activeTab);
     }
@@ -53,12 +55,23 @@ export default function Dashboard() {
         },
     });
 
+    // Fetch tab counts
+    const { data: tabCounts = {} } = useQuery({
+        queryKey: ['taskCounts'],
+        queryFn: async () => {
+            const { data } = await api.get('/tasks/counts');
+            return data;
+        },
+        refetchInterval: 30000, // Refresh every 30 seconds
+    });
+
     // Build tabs
     const otherUsers = allUsers.filter((u) => u._id !== user?._id);
     const tabs = [
         { id: 'my-tasks', label: 'My Tasks' },
         { id: 'unassigned', label: 'Unassigned' },
         ...otherUsers.map((u) => ({ id: u._id, label: u.name })),
+        { id: 'trash', label: 'Trash', icon: true },
     ];
 
     return (
@@ -101,24 +114,42 @@ export default function Dashboard() {
 
             {/* Tabs */}
             <div className="flex gap-1 mb-6 overflow-x-auto pb-1 scrollbar-none">
-                {tabs.map((tab) => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`px-4 py-2 text-sm font-medium rounded-xl whitespace-nowrap transition-all duration-200 cursor-pointer ${activeTab === tab.id
-                                ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
-                                : 'bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80'
-                            }`}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
+                {tabs.map((tab) => {
+                    const count = tabCounts[tab.id];
+                    const isActive = activeTab === tab.id;
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl whitespace-nowrap transition-all duration-200 cursor-pointer ${isActive
+                                ? tab.id === 'trash'
+                                    ? 'bg-destructive/80 text-white shadow-md shadow-destructive/20'
+                                    : 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
+                                : tab.id === 'trash'
+                                    ? 'bg-secondary text-muted-foreground hover:text-destructive hover:bg-destructive/10'
+                                    : 'bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80'
+                                }`}
+                        >
+                            {tab.icon && <Trash2 className="w-3.5 h-3.5" />}
+                            {tab.label}
+                            {count !== undefined && count > 0 && (
+                                <span className={`ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none ${isActive
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-primary/10 text-primary'
+                                    }`}>
+                                    {count}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
             </div>
 
             {/* Task List */}
             <TaskList
                 tasks={tasks}
                 isLoading={isLoading}
+                activeTab={activeTab}
                 onTaskClick={(taskId) => {
                     setSelectedTaskId(taskId);
                     setIsCreateMode(false);

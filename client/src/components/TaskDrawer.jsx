@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import SubTasks from './SubTasks';
+import TaskComments from './TaskComments';
 import StatusBadge from './StatusBadge';
 import { X, Save, Trash2, RotateCcw, Calendar } from 'lucide-react';
 
@@ -91,6 +92,7 @@ export default function TaskDrawer({ taskId, onClose, isCreateMode = false }) {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['tasks'] });
+            queryClient.invalidateQueries({ queryKey: ['taskCounts'] });
             onClose();
         },
     });
@@ -270,6 +272,16 @@ export default function TaskDrawer({ taskId, onClose, isCreateMode = false }) {
                                     onChange={(updatedSubTasks) => handleFieldChange('sub_tasks', updatedSubTasks)}
                                 />
                             </div>
+
+                            {/* Comments (only for existing tasks) */}
+                            {!isCreateMode && taskId && (
+                                <div className="border-t border-border pt-5">
+                                    <TaskComments
+                                        taskId={taskId}
+                                        comments={taskData?.comments || []}
+                                    />
+                                </div>
+                            )}
 
                             {/* Meta info for existing tasks */}
                             {!isCreateMode && taskData && (

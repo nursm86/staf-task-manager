@@ -12,6 +12,27 @@ const subTaskSchema = new mongoose.Schema({
     },
 }, { _id: true });
 
+const commentSchema = new mongoose.Schema({
+    text: {
+        type: String,
+        required: true,
+        trim: true,
+    },
+    author_name: {
+        type: String,
+        required: true,
+    },
+    author_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+    },
+    created_at: {
+        type: Date,
+        default: Date.now,
+    },
+}, { _id: true });
+
 const taskSchema = new mongoose.Schema({
     title: {
         type: String,
@@ -62,6 +83,7 @@ const taskSchema = new mongoose.Schema({
         default: null,
     },
     sub_tasks: [subTaskSchema],
+    comments: [commentSchema],
 }, {
     timestamps: {
         createdAt: 'created_at',

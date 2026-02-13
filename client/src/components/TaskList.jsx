@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import StatusBadge from './StatusBadge';
 import api from '../lib/api';
-import { Eye, CheckSquare, Calendar } from 'lucide-react';
+import { Eye, CheckSquare, Calendar, Trash2, RotateCcw } from 'lucide-react';
 
 const STATUSES = [
     'Assigned',
@@ -13,8 +13,19 @@ const STATUSES = [
     'Cancelled',
 ];
 
-export default function TaskList({ tasks, onTaskClick, onAuditClick, isLoading }) {
+export default function TaskList({ tasks, onTaskClick, onAuditClick, isLoading, activeTab }) {
     const queryClient = useQueryClient();
+
+    const trashTaskMutation = useMutation({
+        mutationFn: async (taskId) => {
+            const { data } = await api.patch(`/tasks/${taskId}/trash`);
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['tasks'] });
+            queryClient.invalidateQueries({ queryKey: ['taskCounts'] });
+        },
+    });
 
     const updateStatusMutation = useMutation({
         mutationFn: async ({ taskId, status }) => {
@@ -142,6 +153,26 @@ export default function TaskList({ tasks, onTaskClick, onAuditClick, isLoading }
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                 </svg>
                             </div>
+
+                            {/* Trash / Restore */}
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    trashTaskMutation.mutate(task._id);
+                                }}
+                                disabled={trashTaskMutation.isPending}
+                                className={`p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all cursor-pointer ${activeTab === 'trash'
+                                        ? 'hover:bg-green-500/10 text-muted-foreground hover:text-green-400'
+                                        : 'hover:bg-destructive/10 text-muted-foreground hover:text-destructive'
+                                    }`}
+                                title={activeTab === 'trash' ? 'Restore' : 'Move to Trash'}
+                            >
+                                {activeTab === 'trash' ? (
+                                    <RotateCcw className="w-4 h-4" />
+                                ) : (
+                                    <Trash2 className="w-4 h-4" />
+                                )}
+                            </button>
 
                             {/* Audit eye */}
                             <button

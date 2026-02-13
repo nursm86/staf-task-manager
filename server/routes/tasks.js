@@ -24,17 +24,76 @@ const createAuditLogs = async (taskId, changes, performedBy) => {
     await AuditLog.insertMany(auditEntries);
 };
 
+// GET /api/tasks/counts — task counts per tab
+router.get('/counts', async (req, res) => {
+    try {
+        const users = await User.find({}, '_id name');
+        const currentUserId = req.user._id;
+
+        // Aggregate counts for non-trashed tasks
+        const countsPipeline = [
+            { $match: { is_trashed: false } },
+            {
+                $group: {
+                    _id: '$assigned_to',
+                    count: { $sum: 1 },
+                },
+            },
+        ];
+
+        const countsResult = await Task.aggregate(countsPipeline);
+
+        // Build counts map: userId -> count
+        const countsMap = {};
+        let unassignedCount = 0;
+
+        for (const entry of countsResult) {
+            if (entry._id === null) {
+                unassignedCount = entry.count;
+            } else {
+                countsMap[entry._id.toString()] = entry.count;
+            }
+        }
+
+        // Count trashed tasks
+        const trashedCount = await Task.countDocuments({ is_trashed: true });
+
+        // Build response
+        const tabCounts = {
+            'my-tasks': countsMap[currentUserId.toString()] || 0,
+            unassigned: unassignedCount,
+            trash: trashedCount,
+        };
+
+        // Add counts for each user
+        for (const u of users) {
+            if (u._id.toString() !== currentUserId.toString()) {
+                tabCounts[u._id.toString()] = countsMap[u._id.toString()] || 0;
+            }
+        }
+
+        res.json(tabCounts);
+    } catch (error) {
+        console.error('Get task counts error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 // GET /api/tasks — list tasks
 router.get('/', async (req, res) => {
     try {
         const { status, assigned_to, tab } = req.query;
-        const filter = { is_trashed: false };
+
+        // Trash tab shows trashed items; all other tabs show non-trashed
+        const filter = tab === 'trash' ? { is_trashed: true } : { is_trashed: false };
 
         if (status && status !== 'all') {
             filter.status = status;
         }
 
-        if (tab === 'my-tasks') {
+        if (tab === 'trash') {
+            // No additional assignment filter for trash
+        } else if (tab === 'my-tasks') {
             filter.assigned_to = req.user._id;
         } else if (tab === 'unassigned') {
             filter.assigned_to = null;
@@ -260,6 +319,50 @@ router.patch('/:id/trash', async (req, res) => {
         res.json(task);
     } catch (error) {
         console.error('Trash task error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// POST /api/tasks/:id/comments — add a comment (append-only, no delete)
+router.post('/:id/comments', async (req, res) => {
+    try {
+        const { text } = req.body;
+
+        if (!text || !text.trim()) {
+            return res.status(400).json({ message: 'Comment text is required' });
+        }
+
+        const task = await Task.findById(req.params.id);
+
+        if (!task) {
+            return res.status(404).json({ message: 'Task not found' });
+        }
+
+        const comment = {
+            text: text.trim(),
+            author_name: req.user.name,
+            author_id: req.user._id,
+        };
+
+        task.comments.push(comment);
+        task.updated_by = req.user._id;
+        await task.save();
+
+        await createAuditLogs(task._id, [{
+            action: 'Added Comment',
+            field: 'comments',
+            oldValue: null,
+            newValue: text.trim(),
+        }], req.user);
+
+        const updatedTask = await Task.findById(task._id)
+            .populate('assigned_to', 'name')
+            .populate('created_by', 'name')
+            .populate('updated_by', 'name');
+
+        res.status(201).json(updatedTask);
+    } catch (error) {
+        console.error('Add comment error:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });
